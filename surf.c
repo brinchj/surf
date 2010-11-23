@@ -558,7 +558,7 @@ newwindow(Client *c, const Arg *arg) {
   uri = arg->v ? (char *)arg->v : c->linkhover;
   if(uri)
     cmd[i++] = uri;
-  cmd[i++] = NULL;
+  cmd[i] = NULL;
   spawn(NULL, &a);
 }
 
