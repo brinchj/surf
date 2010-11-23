@@ -2,6 +2,8 @@
  *
  * To understand surf, start reading main().
  */
+#define _GNU_SOURCE
+
 #include <signal.h>
 #include <X11/X.h>
 #include <X11/Xatom.h>
@@ -99,7 +101,7 @@ static void resize(GtkWidget *w, GtkAllocation *a, Client *c);
 static void scroll(Client *c, const Arg *arg);
 static void setatom(Client *c, int a, const char *v);
 static void setcookie(SoupCookie *c);
-static void setup(void);
+static void setup(const Arg *arg);
 static void sigchld(int unused);
 static void source(Client *c, const Arg *arg);
 static void spawn(Client *c, const Arg *arg);
@@ -115,6 +117,7 @@ static void zoom(Client *c, const Arg *arg);
 #include "config.h"
 
 SoupCookieJar *cookiejar;
+char *cookie = NULL;
 
 char *
 buildpath(const char *path) {
@@ -681,7 +684,7 @@ setatom(Client *c, int a, const char *v) {
 }
 
 void
-setup(void) {
+setup(const Arg *arg) {
   char *proxy;
   char *new_proxy;
   SoupURI *puri;
@@ -704,8 +707,26 @@ setup(void) {
   scriptfile = buildpath(scriptfile);
   stylefile = buildpath(stylefile);
 
-  /* init cookie jar */
+  /* init cookies jar */
   cookiejar = soup_cookie_jar_new();
+  /* parse cookies from argument string */
+  if(cookie != NULL) {
+    char * cstr = cookie;
+    SoupURI *uri = soup_uri_new(arg->v);
+    if(uri != NULL) {
+      do {
+        while (cstr[0] == ';') {
+          cstr = &(cstr[1]);
+        }
+        SoupCookie *parsed = soup_cookie_parse(cstr, uri);
+        if(parsed != NULL) {
+          setcookie(parsed);
+        }
+      } while( (cstr = strstr(cstr, ";")) != NULL) ;
+    }
+    cstr = NULL;
+    cookie = NULL;
+  }
 
   /* read user script */
   load_scriptfile();
@@ -749,8 +770,23 @@ spawn(Client *c, const Arg *arg) {
   if(fork() == 0) {
     if(dpy)
       close(ConnectionNumber(dpy));
-    setsid();
-    execvp(((char **)arg->v)[0], (char **)arg->v);
+
+    char **args  = (char**)(arg->v);
+    char *uri = args[2];
+    char *cookie = getcookies(soup_uri_new(uri));
+    if (cookie != NULL) {
+      char **args2 = calloc(6, sizeof(char *));
+      // ./surf -c cookie -- uri
+      args2[0] = args[0]; // cmd (surf)
+      args2[1] = "-c";    // -c
+      args2[2] = cookie;  // cookie
+      args2[3] = args[1]; // --
+      args2[4] = uri;     // uri
+      args2[5] = NULL;
+      args = args2;
+    }
+    execvp(args[0], args);
+
     fprintf(stderr, "surf: execvp %s", ((char **)arg->v)[0]);
     perror(" failed");
     exit(0);
@@ -822,7 +858,7 @@ main(int argc, char *argv[]) {
   /* command line args */
   for(i = 1, arg.v = NULL;
       i < argc && argv[i][0] == '-' &&
-        argv[i][1] != '\0' && argv[i][2] == '\0';
+        argv[i][1] != '\0';
       i++)
     {
       if(!strcmp(argv[i], "--")) {
@@ -830,6 +866,12 @@ main(int argc, char *argv[]) {
         break;
       }
       switch(argv[i][1]) {
+      case 'c':
+        if(++i < argc) {
+          cookie = argv[i];
+        } else
+          usage();
+        break;
       case 'e':
         if(++i < argc)
           embed = atoi(argv[i]);
@@ -854,9 +896,10 @@ main(int argc, char *argv[]) {
         usage();
       }
     }
+
   if(i < argc)
     arg.v = argv[i];
-  setup();
+  setup(&arg);
   newclient();
   if(arg.v)
     loaduri(clients, &arg);
