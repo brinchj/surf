@@ -316,10 +316,7 @@ geturi(Client *c) {
 
 void
 gotheaders(SoupMessage *msg, gpointer v) {
-  SoupURI *uri;
   GSList *l, *p;
-
-  uri = soup_message_get_uri(msg);
   for(p = l = soup_cookies_from_response(msg); p;
       p = g_slist_next(p))  {
     setcookie((SoupCookie *)p->data);
