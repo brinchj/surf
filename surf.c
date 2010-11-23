@@ -145,16 +145,41 @@ cleanup(void) {
   g_free(stylefile);
 }
 
+
+JSStringRef *
+load_scriptfile() {
+  /* There's only ONE user script per process */
+  static JSStringRef *jsscript = NULL;
+  if(jsscript) {
+    return jsscript;
+  }
+
+  char *script = NULL;
+  GError *error = NULL;
+
+  /* read script file */
+  if(g_file_get_contents(scriptfile, &script, NULL, &error))
+    {
+      /* convert to jsstring */
+      jsscript = calloc(1, sizeof(JSStringRef));
+      *jsscript = JSStringCreateWithUTF8CString(script);
+    }
+  if(script) {
+    free(script);
+  }
+  if(error) {
+    free(error);
+  }
+  return jsscript;
+}
+
+
 void
 runscript(WebKitWebFrame *frame, JSContextRef js) {
-  JSStringRef jsscript;
-  char *script;
-  JSValueRef exception = NULL;
-  GError *error;
-
-  if(g_file_get_contents(scriptfile, &script, NULL, &error)) {
-    jsscript = JSStringCreateWithUTF8CString(script);
-    JSEvaluateScript(js, jsscript, JSContextGetGlobalObject(js), NULL, 0, &exception);
+  JSValueRef exception;
+  JSStringRef *jsscript = load_scriptfile();
+  if(jsscript) {
+    JSEvaluateScript(js, *jsscript, JSContextGetGlobalObject(js), NULL, 0, &exception);
   }
 }
 
@@ -681,6 +706,9 @@ setup(void) {
 
   /* init cookie jar */
   cookiejar = soup_cookie_jar_new();
+
+  /* read user script */
+  load_scriptfile();
 
   /* request handler */
   s = webkit_get_default_session();
