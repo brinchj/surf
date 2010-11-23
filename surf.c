@@ -711,14 +711,29 @@ setup(const Arg *arg) {
   cookiejar = soup_cookie_jar_new();
   /* parse cookies from argument string */
   if(cookie != NULL) {
+    // I'm pretty sure we're leaking a bit here
     char * cstr = cookie;
-    SoupURI *uri = soup_uri_new(arg->v);
+    char * uri = strdup(arg->v); // don't trash arg->v!
+
+    char *context;
+    char *sep = "/";
+    char *ptcl = strtok_r(uri, sep, &context);
+    char *host = strtok_r(NULL, sep, &context);
+    if(host == NULL) {
+      printf("NULL jo\n");
+      // in case of no trailing / as in reddit.com/
+      host = &(uri[strlen(ptcl)+1]);
+    }
+    // reconstruct uri
+    asprintf(&uri, "%s//%s", ptcl, host);
+    SoupURI *soup_uri = soup_uri_new(uri);
+
     if(uri != NULL) {
       do {
         while (cstr[0] == ';') {
           cstr = &(cstr[1]);
         }
-        SoupCookie *parsed = soup_cookie_parse(cstr, uri);
+        SoupCookie *parsed = soup_cookie_parse(cstr, soup_uri);
         if(parsed != NULL) {
           setcookie(parsed);
         }
