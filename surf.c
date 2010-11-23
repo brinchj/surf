@@ -114,6 +114,8 @@ static void zoom(Client *c, const Arg *arg);
 /* configuration, allows nested code to access above variables */
 #include "config.h"
 
+SoupCookieJar *cookiejar;
+
 char *
 buildpath(const char *path) {
   char *apath, *p;
@@ -139,7 +141,6 @@ void
 cleanup(void) {
   while(clients)
     destroyclient(clients);
-  g_free(cookiefile);
   g_free(scriptfile);
   g_free(stylefile);
 }
@@ -279,11 +280,7 @@ find(Client *c, const Arg *arg) {
 
 const char *
 getcookies(SoupURI *uri) {
-  const char *c;
-  SoupCookieJar *j = soup_cookie_jar_text_new(cookiefile, TRUE);
-  c = soup_cookie_jar_get_cookies(j, uri, TRUE);
-  g_object_unref(j);
-  return c;
+  return soup_cookie_jar_get_cookies(cookiejar, uri, TRUE);
 }
 
 const char *
@@ -641,21 +638,13 @@ scroll(Client *c, const Arg *arg) {
 
 void
 setcookie(SoupCookie *c) {
-  int lock;
-
-  lock = open(cookiefile, 0);
-  flock(lock, LOCK_EX);
   SoupDate *e;
-  SoupCookieJar *j = soup_cookie_jar_text_new(cookiefile, FALSE);
   c = soup_cookie_copy(c);
   if(c->expires == NULL && sessiontime) {
     e = soup_date_new_from_time_t(time(NULL) + sessiontime);
     soup_cookie_set_expires(c, e);
   }
-  soup_cookie_jar_add_cookie(j, c);
-  g_object_unref(j);
-  flock(lock, LOCK_UN);
-  close(lock);
+  soup_cookie_jar_add_cookie(cookiejar, c);
 }
 
 void
@@ -687,9 +676,11 @@ setup(void) {
   atoms[AtomUri] = XInternAtom(dpy, "_SURF_URI", False);
 
   /* dirs and files */
-  cookiefile = buildpath(cookiefile);
   scriptfile = buildpath(scriptfile);
   stylefile = buildpath(stylefile);
+
+  /* init cookie jar */
+  cookiejar = soup_cookie_jar_new();
 
   /* request handler */
   s = webkit_get_default_session();
