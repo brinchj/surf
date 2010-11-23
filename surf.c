@@ -415,8 +415,10 @@ newclient(void) {
   GdkGeometry hints = { 1, 1 };
   char *uri, *ua;
 
-  if(!(c = calloc(1, sizeof(Client))))
+  if((c = calloc(1, sizeof(Client))) == NULL) {
     die("Cannot malloc!\n");
+    return NULL;
+  }
   /* Window */
   if(embed) {
     c->win = gtk_plug_new(embed);
