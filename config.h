@@ -13,7 +13,7 @@ static time_t sessiontime   = 3600*24; // 24 hours
 	p, q, winid, NULL } }
 #define DOWNLOAD(d) { \
 	.v = (char *[]){ "/bin/sh", "-c", \
-	"xterm -e \"wget --load-cookies ~/.surf/cookies.txt '$0';\"", \
+	"xterm -e \"wget '$0';\"", \
 	d, NULL } }
 #define MODKEY GDK_CONTROL_MASK
 static Key keys[] = {
